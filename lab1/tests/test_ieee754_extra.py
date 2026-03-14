@@ -18,7 +18,7 @@ def test_cli_add(monkeypatch):
 
 
 def test_cli_invalid(monkeypatch):
-    inputs=iter(["9","0"])
+    inputs=iter(["9","1","1","0"])
     monkeypatch.setattr("builtins.input",lambda _:next(inputs))
     lab1_6.main()
 def test_div_zero():

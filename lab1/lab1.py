@@ -309,28 +309,43 @@ def main_mul():
 
 
 #5
-def divide_in_direct_code(a: int, b: int, precision: int = 5):
-
+def divide_in_direct_code(a: int, b: int):
 
     if b == 0:
         raise ZeroDivisionError("Деление на ноль невозможно")
 
-    sign_a = 1 if a < 0 else 0
-    sign_b = 1 if b < 0 else 0
-    sign_res = 1 if (sign_a ^ sign_b) else 0
+    # переводим числа в прямой код
+    a_bits = to_direct_code(a)
+    b_bits = to_direct_code(b)
 
- 
-    ma = abs(a)
-    mb = abs(b)
+    # знак результата
+    sign_res = a_bits[0] ^ b_bits[0]
 
+    # модули чисел (31 бит)
+    dividend = a_bits[1:]
+    divisor = b_bits[1:]
 
-    q = ma / mb
-    q_rounded = round(q, precision)
+    quotient = [0] * 31
+    remainder = [0] * 31
 
+    for i in range(31):
 
-    direct_bits = to_direct_code(int(q_rounded))
+        # сдвиг остатка
+        remainder = remainder[1:] + [dividend[i]]
 
-    return q_rounded, sign_res, direct_bits
+        # проверяем remainder >= divisor
+        if bits_to_int(remainder) >= bits_to_int(divisor):
+
+            # remainder = remainder - divisor
+            r = bits_to_int(remainder) - bits_to_int(divisor)
+
+            remainder = set_magnitude_bits(r)[1:]
+            quotient[i] = 1
+
+    # формируем прямой код результата
+    result = [sign_res] + quotient
+
+    return result
 
 
 def show_division():
@@ -338,15 +353,17 @@ def show_division():
     b = int(input("Введите делитель B: "))
 
     try:
-        quotient, sign_res, bits = divide_in_direct_code(a, b)
+        bits = divide_in_direct_code(a, b)
     except ZeroDivisionError as e:
         print("Ошибка:", e)
         return
 
+    # перевод результата обратно в десятичное число
+    quotient = direct_code_to_decimal(bits)
+
     print(f"\nA = {a}, B = {b}")
-    print(f"Частное (десятичное): {quotient:.5f}")
-    print("Частное (прямой код — целая часть):", bits_to_str(bits))
-    print("Знак частного:", sign_res)
+    print("Частное (десятичное):", quotient)
+    print("Частное (прямой код):", bits_to_str(bits))
 
 
 def main() -> None:

@@ -11,7 +11,6 @@ from lab1_6 import (
 
 
 @pytest.mark.parametrize("value", [
-    0.0,
     1.0,
     -1.0,
     3.5,

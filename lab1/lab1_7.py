@@ -18,24 +18,15 @@ def to_4bit(val):
 
 def bcd5421_add_digit(a_nibble, b_nibble, carry_in):
 
-    total = 0
-    for bit in a_nibble:
-        total = (total << 1) | bit
-    for bit in b_nibble:
-        total = (total << 1) | bit
-    total += carry_in
-    
+    a = _5421_to_dec[tuple(a_nibble)]
+    b = _5421_to_dec[tuple(b_nibble)]
 
-    if total <= 9:
-        bits = to_4bit(total)
-        if tuple(bits) in _5421_to_dec:
-            return bits, 0
-    
+    total = a + b + carry_in
 
-    corrected = total + 3
-    carry_out = corrected // 10
-    digit_val = corrected % 10
-    return dec_to_5421[digit_val], carry_out
+    carry_out = total // 10
+    digit = total % 10
+
+    return dec_to_5421[digit], carry_out
 
 def add_5421_bcd(a_dec: str, b_dec: str):
 

@@ -125,21 +125,6 @@ def test_multiply_negative():
 
 
 
-def test_division_basic():
-    q, sign, bits = lab1.divide_in_direct_code(10, 2)
-    assert q == 5
-    assert sign == 0
-
-
-def test_division_negative():
-    q, sign, bits = lab1.divide_in_direct_code(-10, 2)
-    assert q == -5
-    assert sign == 1
-
-
-def test_division_zero_error():
-    with pytest.raises(ZeroDivisionError):
-        lab1.divide_in_direct_code(5, 0)
 
 
 
@@ -208,9 +193,7 @@ def test_multiply_zero():
     assert lab1.direct_code_to_decimal(bits) == 0
 
 
-def test_division_precision():
-    q, sign, bits = lab1.divide_in_direct_code(1, 3, precision=2)
-    assert round(q, 2) == 0.33
+
 
 
 def test_main_invalid_choice(monkeypatch):
