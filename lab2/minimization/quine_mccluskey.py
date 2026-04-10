@@ -2,51 +2,60 @@ from itertools import combinations
 
 
 def minimize_qm(table, variables):
-    """
-    Расчетный метод минимизации по СДНФ
-    с выводом стадий склеивания и удалением лишних импликант.
-    """
+    dnf_text = _minimize_qm_generic(table, variables, target_value=1)
+    cnf_text = _minimize_qm_generic(table, variables, target_value=0)
 
-    minterms = [row[:-1] for row in table if row[-1] == 1]
+    return (
+        "=== РАСЧЕТНЫЙ МЕТОД: ДНФ ===\n"
+        + dnf_text
+        + "\n\n"
+        + "=== РАСЧЕТНЫЙ МЕТОД: КНФ ===\n"
+        + cnf_text
+    )
 
-    if not minterms:
-        return "Функция тождественно равна 0"
 
-    if len(minterms) == len(table):
-        return "Функция тождественно равна 1"
+def _minimize_qm_generic(table, variables, target_value):
+    terms_source = [tuple(row[:-1]) for row in table if row[-1] == target_value]
+
+    if target_value == 1:
+        if not terms_source:
+            return "Функция тождественно равна 0"
+        if len(terms_source) == len(table):
+            return "Функция тождественно равна 1"
+        form_name = "СДНФ"
+        join_symbol = " ∨ "
+    else:
+        if not terms_source:
+            return "Функция тождественно равна 1"
+        if len(terms_source) == len(table):
+            return "Функция тождественно равна 0"
+        form_name = "СКНФ"
+        join_symbol = " ∧ "
 
     current_terms = []
-    for idx, values in enumerate(minterms, start=1):
+    for idx, values in enumerate(terms_source, start=1):
         current_terms.append({
-            "pattern": tuple(values),          # например (1,0,1)
-            "covers": {tuple(values)},         # какие наборы покрывает
-            "label": idx                       # номер для красивого вывода
+            "pattern": tuple(values),
+            "covers": {tuple(values)},
+            "label": idx
         })
 
     lines = []
 
-    # =========================
-    # 1. Исходная СДНФ
-    # =========================
-    original_sdnf = " ∨ ".join(
-        f"({pattern_to_expr(term['pattern'], variables)}){i}"
+    original_expr = join_symbol.join(
+        f"{format_term_with_index(term['pattern'], variables, target_value)}{i}"
         for i, term in enumerate(current_terms, start=1)
     )
     lines.append("Расчетный метод")
-    lines.append(f"Исходная СДНФ: {original_sdnf}")
+    lines.append(f"Исходная {form_name}: {original_expr}")
     lines.append(" ".join(pattern_to_vector_str(term["pattern"]) for term in current_terms))
 
-    # =========================
-    # 2. Стадии склеивания
-    # =========================
     all_prime_implicants = []
 
-    stage_number = 1
     while True:
-        glued, next_terms, used_patterns = glue_stage(current_terms, variables)
+        glued, next_terms, used_patterns = glue_stage(current_terms)
 
         if not glued:
-            # всё, что осталось и не было склеено, — простые импликанты
             all_prime_implicants.extend(unique_terms(current_terms))
             break
 
@@ -55,23 +64,26 @@ def minimize_qm(table, variables):
         if current_terms:
             active_var_count = count_active_vars(current_terms[0]["pattern"])
             lines.append(
-                f"Ищем скобки в которых n-1 одинаковых переменных "
-                f"(n - общее число переменных, у нас это {active_var_count}) "
+                f"Ищем скобки, в которых n-1 одинаковых переменных "
+                f"(n - число активных переменных, сейчас {active_var_count}), "
                 f"и склеиваем их по общим переменным"
             )
 
         for left_term, right_term, glued_term in glued:
-            left_expr = pattern_to_expr(left_term["pattern"], variables)
-            right_expr = pattern_to_expr(right_term["pattern"], variables)
-            glued_expr = pattern_to_expr(glued_term["pattern"], variables)
+            left_expr = pattern_to_expr(left_term["pattern"], variables, target_value)
+            right_expr = pattern_to_expr(right_term["pattern"], variables, target_value)
+            glued_expr = pattern_to_expr(glued_term["pattern"], variables, target_value)
 
             left_label = left_term.get("label", "")
             right_label = right_term.get("label", "")
+
             lines.append(
-                f"({left_expr}){left_label} ∨ ({right_expr}){right_label} => ({glued_expr})"
+                f"{format_term_raw(left_expr, target_value)}{left_label} "
+                f"{join_symbol} "
+                f"{format_term_raw(right_expr, target_value)}{right_label} "
+                f"=> {format_term_raw(glued_expr, target_value)}"
             )
 
-        # неиспользованные текущие — простые импликанты
         for term in current_terms:
             if term["pattern"] not in used_patterns:
                 all_prime_implicants.append(term)
@@ -83,51 +95,47 @@ def minimize_qm(table, variables):
 
         lines.append("Результат:")
         lines.append(
-            " ∨ ".join(
-                f"({pattern_to_expr(term['pattern'], variables)}){i}"
+            join_symbol.join(
+                f"{format_term_with_index(term['pattern'], variables, target_value)}{i}"
                 for i, term in enumerate(next_terms, start=1)
             )
         )
         lines.append(" ".join(pattern_to_vector_str(term["pattern"]) for term in next_terms))
 
         current_terms = next_terms
-        stage_number += 1
 
     all_prime_implicants = unique_terms(all_prime_implicants)
 
-    # =========================
-    # 3. Удаление лишних импликант
-    # =========================
-    essential, redundant, chosen = remove_redundant_implicants(all_prime_implicants, minterms)
+    essential, redundant, chosen = remove_redundant_implicants(all_prime_implicants, terms_source)
 
     lines.append("")
     lines.append("Проверка на наличие лишних импликант")
 
     for idx, term in enumerate(all_prime_implicants, start=1):
-        expr = pattern_to_expr(term["pattern"], variables)
-        sample = find_sample_covered_minterm(term, minterms)
+        expr = pattern_to_expr(term["pattern"], variables, target_value)
+        sample = find_sample_covered_term(term, terms_source)
 
         if sample is None:
-            lines.append(f"{idx}) ({expr}) не покрывает ни одного минтерма — лишняя")
+            lines.append(f"{idx}) {format_term_raw(expr, target_value)} не покрывает ни одного набора — лишняя")
             continue
 
         sample_str = "(" + ", ".join(map(str, sample)) + ")"
 
         if term in redundant:
             lines.append(
-                f"{idx}) ({expr}) = 1 на наборе {sample_str}, "
-                f"и этот набор уже покрывается другими импликантами => ({expr}) лишняя"
+                f"{idx}) {format_term_raw(expr, target_value)} "
+                f"покрывает набор {sample_str}, но он уже покрывается другими => лишняя"
             )
         else:
             lines.append(
-                f"{idx}) ({expr}) = 1 на наборе {sample_str}, "
-                f"и существует набор, который без неё не покрывается => ({expr}) не лишняя"
+                f"{idx}) {format_term_raw(expr, target_value)} "
+                f"покрывает набор {sample_str}, и без неё покрытие нарушится => не лишняя"
             )
 
     lines.append("")
     lines.append("Убираем лишние импликанты и получаем:")
-    final_expr = " ∨ ".join(
-        format_term_with_optional_brackets(term["pattern"], variables)
+    final_expr = join_symbol.join(
+        format_term_for_result(term["pattern"], variables, target_value)
         for term in chosen
     )
     lines.append(final_expr)
@@ -135,11 +143,7 @@ def minimize_qm(table, variables):
     return "\n".join(lines)
 
 
-# =========================================================
-# СКЛЕИВАНИЕ
-# =========================================================
-
-def glue_stage(current_terms, variables):
+def glue_stage(current_terms):
     glued_pairs = []
     next_terms = []
     used_patterns = set()
@@ -166,11 +170,6 @@ def glue_stage(current_terms, variables):
 
 
 def try_glue(p1, p2):
-    """
-    Склеивание возможно, если термы отличаются ровно в одной активной позиции,
-    а во всех остальных совпадают.
-    None = уже склеенная позиция (X).
-    """
     diff_count = 0
     result = []
 
@@ -188,10 +187,6 @@ def try_glue(p1, p2):
 
     return None
 
-
-# =========================================================
-# РАБОТА С ИМПЛИКАНТАМИ
-# =========================================================
 
 def unique_terms(terms):
     unique = {}
@@ -213,8 +208,8 @@ def count_active_vars(pattern):
     return sum(1 for x in pattern if x is not None)
 
 
-def covers_pattern(term_pattern, minterm):
-    for t, m in zip(term_pattern, minterm):
+def covers_pattern(term_pattern, source_term):
+    for t, m in zip(term_pattern, source_term):
         if t is None:
             continue
         if t != m:
@@ -222,26 +217,16 @@ def covers_pattern(term_pattern, minterm):
     return True
 
 
-def find_sample_covered_minterm(term, minterms):
-    for m in minterms:
+def find_sample_covered_term(term, source_terms):
+    for m in source_terms:
         if covers_pattern(term["pattern"], m):
             return m
     return None
 
 
-# =========================================================
-# УДАЛЕНИЕ ЛИШНИХ ИМПЛИКАНТ
-# =========================================================
-
-def remove_redundant_implicants(prime_implicants, minterms):
-    """
-    Сначала берём обязательные импликанты,
-    потом добираем недостающие жадно,
-    потом проверяем избыточность.
-    """
-
+def remove_redundant_implicants(prime_implicants, source_terms):
     coverage_map = {}
-    for m in minterms:
+    for m in source_terms:
         m_tuple = tuple(m)
         coverage_map[m_tuple] = []
         for imp in prime_implicants:
@@ -250,7 +235,6 @@ def remove_redundant_implicants(prime_implicants, minterms):
 
     chosen = []
 
-    # 1. Существенные простые импликанты
     essential = []
     for m, covering in coverage_map.items():
         if len(covering) == 1 and covering[0] not in essential:
@@ -258,15 +242,13 @@ def remove_redundant_implicants(prime_implicants, minterms):
 
     chosen.extend(essential)
 
-    # 2. Какие минтермы уже покрыты
     covered = set()
     for imp in chosen:
-        for m in minterms:
+        for m in source_terms:
             if covers_pattern(imp["pattern"], m):
                 covered.add(tuple(m))
 
-    # 3. Добираем остальные жадно
-    uncovered = set(tuple(m) for m in minterms) - covered
+    uncovered = set(tuple(m) for m in source_terms) - covered
 
     while uncovered:
         best_imp = None
@@ -289,7 +271,6 @@ def remove_redundant_implicants(prime_implicants, minterms):
             if covers_pattern(best_imp["pattern"], m):
                 uncovered.discard(m)
 
-    # 4. Выкидываем лишние
     final_chosen = chosen[:]
     changed = True
 
@@ -299,7 +280,7 @@ def remove_redundant_implicants(prime_implicants, minterms):
             others = [x for x in final_chosen if x != imp]
 
             all_covered = True
-            for m in minterms:
+            for m in source_terms:
                 if covers_pattern(imp["pattern"], m):
                     if not any(covers_pattern(other["pattern"], m) for other in others):
                         all_covered = False
@@ -310,42 +291,61 @@ def remove_redundant_implicants(prime_implicants, minterms):
                 changed = True
 
     redundant = [imp for imp in prime_implicants if imp not in final_chosen]
-
     return essential, redundant, final_chosen
 
 
-# =========================================================
-# ФОРМАТИРОВАНИЕ
-# =========================================================
+def pattern_to_expr(pattern, variables, target_value):
+    if target_value == 1:
+        parts = []
+        for value, var in zip(pattern, variables):
+            if value is None:
+                continue
+            if value == 1:
+                parts.append(var)
+            else:
+                parts.append(f"¬{var}")
+        return "".join(parts) if parts else "1"
 
-def pattern_to_expr(pattern, variables):
     parts = []
     for value, var in zip(pattern, variables):
         if value is None:
             continue
         if value == 1:
-            parts.append(var)
-        else:
             parts.append(f"¬{var}")
+        else:
+            parts.append(var)
 
     if not parts:
-        return "1"
+        return "0"
 
-    return "".join(parts)
+    return " ∨ ".join(parts)
 
 
 def pattern_to_vector_str(pattern):
     return "(" + ",".join("X" if x is None else str(x) for x in pattern) + ")"
 
 
-def format_term_with_optional_brackets(pattern, variables):
-    expr = pattern_to_expr(pattern, variables)
-    active_count = count_active_vars(pattern)
+def format_term_raw(expr, target_value):
+    if target_value == 1:
+        return f"({expr})"
+    return f"({expr})"
 
-    if expr == "1":
-        return "1"
 
-    if active_count <= 1:
-        return expr
+def format_term_with_index(pattern, variables, target_value):
+    expr = pattern_to_expr(pattern, variables, target_value)
+    return format_term_raw(expr, target_value)
 
+
+def format_term_for_result(pattern, variables, target_value):
+    expr = pattern_to_expr(pattern, variables, target_value)
+
+    if target_value == 1:
+        if expr == "1":
+            return "1"
+        if count_active_vars(pattern) <= 1:
+            return expr
+        return f"({expr})"
+
+    if expr == "0":
+        return "0"
     return f"({expr})"

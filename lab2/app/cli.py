@@ -75,11 +75,11 @@ def run_cli():
         print(f"{name}: {''.join(map(str, values))}")
 
     # 10. Минимизация
-    print("\nМинимизация (Квайн-МакКласки):")
+    print("\nМинимизация расчетным методом:")
     print(minimize_qm(table, variables))
 
-    print("\nМинимизация (табличный):")
+    print("\nМинимизация расчетно-табличным методом:")
     print(minimize_tabular(table, variables))
 
-    print("\nМинимизация (Карно):")
+    print("\nМинимизация табличным методом (карта Карно):")
     print(minimize_karnaugh(table, variables))
