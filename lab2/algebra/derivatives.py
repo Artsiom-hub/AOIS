@@ -11,15 +11,11 @@ def compute_derivatives(expr, variables):
 
     var_count = len(variables)
 
-    # =========================
-    # Частные производные
-    # =========================
+
     for i, var in enumerate(variables):
         results[f"∂({var})"] = derivative_single(rpn, variables, i)
 
-    # =========================
-    # Смешанные производные (до 4 переменных)
-    # =========================
+
     max_order = min(4, var_count)
 
     for order in range(2, max_order + 1):
@@ -30,9 +26,7 @@ def compute_derivatives(expr, variables):
     return results
 
 
-# =========================
-# Частная производная
-# =========================
+
 def derivative_single(rpn, variables, var_index):
     other_vars = [v for i, v in enumerate(variables) if i != var_index]
 
@@ -60,9 +54,7 @@ def derivative_single(rpn, variables, var_index):
     return values
 
 
-# =========================
-# Смешанная производная
-# =========================
+
 def derivative_multi(rpn, variables, var_indices):
     other_vars = [v for i, v in enumerate(variables) if i not in var_indices]
 
@@ -71,7 +63,7 @@ def derivative_multi(rpn, variables, var_indices):
     for combo in itertools.product([0, 1], repeat=len(other_vars)):
         xor_sum = 0
 
-        # перебираем все комбинации переменных дифференцирования
+        
         for mask in range(1 << len(var_indices)):
             env = {}
             idx = 0

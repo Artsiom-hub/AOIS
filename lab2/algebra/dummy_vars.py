@@ -14,7 +14,7 @@ def find_dummy_variables(table, variables):
                 row_i = table[i]
                 row_j = table[j]
 
-                # проверяем: отличаются только по одной переменной
+                
                 differs_only_in_var = True
 
                 for k in range(var_count):
@@ -30,7 +30,7 @@ def find_dummy_variables(table, variables):
                             break
 
                 if differs_only_in_var:
-                    # если нашли разницу в F → переменная не фиктивная
+                    
                     if row_i[-1] != row_j[-1]:
                         is_dummy = False
                         break
