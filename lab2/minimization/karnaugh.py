@@ -512,7 +512,7 @@ def _minimize_karnaugh_5(table, variables, target_value):
 
 
     # =====================
-    # 🔥 ПОЛНАЯ СКЛЕЙКА МЕЖДУ СЛОЯМИ (3D группы)
+    # ПОЛНАЯ СКЛЕЙКА МЕЖДУ СЛОЯМИ (3D группы)
     # =====================
 
     rows = len(row_codes)
@@ -584,13 +584,33 @@ def _minimize_karnaugh_5(table, variables, target_value):
     lines.append("Слой e=1:")
     lines.extend(render_kmap(grids[1], row_vars, col_vars, row_codes, col_codes))
     lines.append("")
-
+    chosen = simplify_groups(chosen)
     for idx, group in enumerate(chosen, start=1):
-        lines.append(f"Область {idx}: {group['expr']}")
+        lines.append(f"Область {idx}:")
+        
+        # показать карту с выделением группы
+        if isinstance(next(iter(group["cells"])), tuple) and len(next(iter(group["cells"]))) == 3:
+            # 5 переменных (3D)
+            cells_2d = {(r, c) for (r, c, _) in group["cells"]}
+        else:
+            cells_2d = group["cells"]
+
+        lines.extend(render_group_map(
+            grids[0],  # можно e=0, для простоты
+            row_vars,
+            col_vars,
+            row_codes,
+            col_codes,
+            cells_2d
+        ))
+
+        lines.append("")
+        lines.append(f"K{idx}: {group['expr']}")
+        lines.append("")
 
     join_symbol = " ∨ " if target_value == 1 else " ∧ "
 
-    chosen = simplify_groups(chosen)
+    
     exprs = [g["expr"] for g in chosen]
     result_expr = join_symbol.join(exprs)
 
